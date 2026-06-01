@@ -1,0 +1,14 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.vscode/
+.env
+.git-new/
+codex-write-test.tmp
+yolov8n.pt
+screen_recording_frames/
+data/videos/
+*.mp4
+debug_vdo2_first_frame.jpg
+first_frame.png
