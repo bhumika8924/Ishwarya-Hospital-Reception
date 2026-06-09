@@ -113,6 +113,27 @@ def scale_points(pts, ref_w, ref_h, frame_w, frame_h):
     return np.array(out, dtype=np.int32)
 
 
+def blue_uniform_mask(image):
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    mask = cv2.inRange(
+        hsv,
+        np.array([88, 65, 35]),
+        np.array([132, 255, 245]),
+    )
+    return cv2.morphologyEx(
+        mask,
+        cv2.MORPH_OPEN,
+        np.ones((3, 3), dtype=np.uint8),
+    )
+
+
+def blue_ratio(image):
+    if image.size == 0:
+        return 0.0
+    mask = blue_uniform_mask(image)
+    return cv2.countNonZero(mask) / float(mask.size)
+
+
 def outfit_match_score(frame, box, reference_hist):
     x1, y1, x2, y2 = box
     h, w = frame.shape[:2]
@@ -131,6 +152,49 @@ def outfit_match_score(frame, box, reference_hist):
 
     person_hist = make_hs_hist(torso)
     return cv2.compareHist(reference_hist, person_hist, cv2.HISTCMP_CORREL)
+
+
+def blue_outfit_match_score(frame, box):
+    x1, y1, x2, y2 = box
+    h, w = frame.shape[:2]
+    x1, y1 = max(0, x1), max(0, y1)
+    x2, y2 = min(w, x2), min(h, y2)
+
+    crop = frame[y1:y2, x1:x2]
+    if crop.size == 0:
+        return 0.0
+
+    torso = crop[int(crop.shape[0] * 0.25): int(crop.shape[0] * 0.72)]
+    lower_body = crop[int(crop.shape[0] * 0.52): int(crop.shape[0] * 0.95)]
+    lower_body = lower_body[
+        :,
+        int(lower_body.shape[1] * 0.25): int(lower_body.shape[1] * 0.75),
+    ]
+    torso_score = blue_ratio(torso)
+    lower_score = blue_ratio(lower_body)
+
+    if torso_score >= 0.16 and lower_score >= 0.18:
+        return torso_score
+    return 0.0
+
+
+def has_blue_saree_color(frame, box, min_blue_pixels):
+    x1, y1, x2, y2 = box
+    h, w = frame.shape[:2]
+    x1, y1 = max(0, x1), max(0, y1)
+    x2, y2 = min(w, x2), min(h, y2)
+
+    crop = frame[y1:y2, x1:x2]
+    if crop.size == 0:
+        return False, 0
+
+    lower_body = crop[int(crop.shape[0] * 0.48): int(crop.shape[0] * 0.95)]
+    if lower_body.size == 0:
+        return False, 0
+
+    blue_mask = blue_uniform_mask(lower_body)
+    blue_pixel_count = cv2.countNonZero(blue_mask)
+    return blue_pixel_count >= min_blue_pixels, blue_pixel_count
 
 
 def has_id_card_lanyard(frame, box, min_red_pixels):
@@ -382,6 +446,8 @@ def analyze_video(
     yolo_iou=0.40,
     match_threshold=0.55,
     min_red=20,
+    blue_match_threshold=0.18,
+    min_blue_pixels=80,
     min_overlap=MIN_ZONE_OVERLAP,
     analyze_every=1,
     on_progress=None,
@@ -395,16 +461,15 @@ def analyze_video(
     if not os.path.isfile(model_path):
         raise FileNotFoundError(f"YOLO model missing: {model_path}")
 
-    if not os.path.isfile(reference_path):
-        raise FileNotFoundError(f"Uniform reference image missing: {reference_path}")
-
     if not os.path.isfile(video_path):
         raise FileNotFoundError(f"Video not found: {video_path}")
 
     if not os.path.isfile(two_line_path):
         raise FileNotFoundError(f"Two-line file not found: {two_line_path}")
 
-    reference_hist = load_reference_hist(reference_path)
+    reference_hist = None
+    if reference_path and os.path.isfile(reference_path):
+        reference_hist = load_reference_hist(reference_path)
     reception_ref = load_polygon_json(zone_path, DEFAULT_RECEPTION_REF)
 
     cap = cv2.VideoCapture(video_path)
@@ -511,20 +576,34 @@ def analyze_video(
                 )
 
                 if track_id not in receptionist_track_ids:
-                    score = outfit_match_score(
-                        original_frame,
-                        person_box,
-                        reference_hist,
-                    )
-                    uniform_match = score >= match_threshold
+                    uniform_match = False
+                    if reference_hist is not None:
+                        score = outfit_match_score(
+                            original_frame,
+                            person_box,
+                            reference_hist,
+                        )
+                        uniform_match = score >= match_threshold
+                    blue_score = blue_outfit_match_score(original_frame, person_box)
+                    blue_uniform_match = blue_score >= blue_match_threshold
 
                     id_found, _ = has_id_card_lanyard(
                         original_frame,
                         person_box,
                         min_red,
                     )
+                    blue_found, _ = has_blue_saree_color(
+                        original_frame,
+                        person_box,
+                        min_blue_pixels,
+                    )
 
-                    if in_zone and (uniform_match or id_found):
+                    if in_zone and (
+                        uniform_match
+                        or id_found
+                        or blue_uniform_match
+                        or blue_found
+                    ):
                         receptionist_confirm_count[track_id] = (
                             receptionist_confirm_count.get(track_id, 0) + 1
                         )

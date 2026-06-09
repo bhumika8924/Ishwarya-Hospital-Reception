@@ -9,7 +9,7 @@ from core.counter_core import analyze_video
 def main():
 
 
-    st.set_page_config(page_title="Receptionist + Visitor Counters", layout="wide")
+    st.set_page_config(page_title="Dress Code Receptionist + Visitor Counters", layout="wide")
 
     PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     MODEL_PATH = os.path.join(PROJECT_ROOT, "assets", "yolov8n.pt")
@@ -23,15 +23,17 @@ def main():
     yolo_iou = 0.40
     match_threshold = 0.55
     min_red = 20
+    blue_match_threshold = 0.18
+    min_blue_pixels = 80
     min_overlap = 0.30
     two_line_path = TWO_LINE_PATH
     entry_order_option = "1-2"
     analyze_every = 1
 
-    st.title("Receptionist and two-line visitor counter")
+    st.title("Dress code receptionist and two-line visitor counter")
     st.caption(
-        "Counts confirmed receptionists at the desk and visitor entry/exit crossings "
-        "from the saved two-line setup."
+        "Counts confirmed pink/reference or blue-saree receptionists at the desk "
+        "and visitor entry/exit crossings from the saved two-line setup."
     )
 
     if not os.path.isfile(MODEL_PATH):
@@ -39,8 +41,10 @@ def main():
         st.stop()
 
     if not os.path.isfile(REFERENCE_PATH):
-        st.error(f"Uniform reference image missing: `{REFERENCE_PATH}`")
-        st.stop()
+        st.warning(
+            f"Pink/reference uniform image missing: `{REFERENCE_PATH}`. "
+            "Blue-saree dress-code checking will still run."
+        )
 
     with st.sidebar:
         st.header("Video")
@@ -115,6 +119,8 @@ def main():
                 yolo_iou=yolo_iou,
                 match_threshold=match_threshold,
                 min_red=min_red,
+                blue_match_threshold=blue_match_threshold,
+                min_blue_pixels=min_blue_pixels,
                 min_overlap=min_overlap,
                 analyze_every=analyze_every,
                 on_progress=update_progress,
@@ -158,7 +164,8 @@ def main():
     st.markdown("---")
     st.caption(
         "`reception_zone.json` controls the four-point reception desk zone. "
-        "`receptionist_uniform_ref.png` controls the uniform color match. "
+        "`receptionist_uniform_ref.png` controls the pink/reference uniform match. "
+        "Blue saree color is checked directly from the detected person's body area. "
         "`two_line_counter_lines.json` controls visitor entry/exit lines."
     )
 

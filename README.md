@@ -4,23 +4,25 @@ Streamlit and OpenCV tools for monitoring a hospital reception desk. The project
 detects people with YOLO, counts confirmed receptionists in the configured
 reception zone, and counts visitor entries/exits using two saved crossing lines.
 
-There are two separate Streamlit modes:
+For a detailed beginner-friendly explanation of the problem, approach, solution,
+and commands, see `docs/project_documentation_for_beginners.md`. A sendable
+Word version is also available at
+`docs/Hospital_Reception_Monitor_Beginner_Documentation.docx`.
 
-- Pink/reference-uniform receptionist counter
-- Blue-saree receptionist counter
-
-Both modes use the same reception-zone file and visitor entry/exit line setup.
+There is one Streamlit app for receptionist dress-code checking. It accepts both
+pink/reference-uniform and blue-saree dress-code matches, and uses the same
+reception-zone file and visitor entry/exit line setup.
 
 ## Folder Structure
 
 ```text
 apps/                           <- Streamlit app screens
-  streamlit_app.py              <- Pink/reference-uniform receptionist counter
-  streamlit_app_blue.py         <- Blue-saree receptionist counter
+  streamlit_app.py              <- Combined dress-code receptionist counter
+  streamlit_app_blue.py         <- Compatibility launcher for the combined app
 
 core/                           <- Main counting logic
-  counter_core.py               <- Pink/reference-uniform analysis logic
-  counter_core_blue.py          <- Blue-saree analysis logic
+  counter_core.py               <- Combined pink/reference and blue-saree analysis logic
+  counter_core_blue.py          <- Compatibility import for the combined core
 
 tools/                          <- Setup/helper scripts
   two_line_visitor_counter.py   <- Draw/redraw visitor entry and exit lines
@@ -38,8 +40,8 @@ docs/                           <- Notes and use cases
 .streamlit/config.toml          <- Streamlit upload limit
 ```
 
-The root `streamlit_app.py` and `streamlit_app_blue.py` files are small launchers,
-so the old run commands still work after organizing the folders.
+The root `streamlit_app.py` file is the main launcher. `streamlit_app_blue.py`
+still works as an old shortcut, but it now opens the same combined app.
 
 ## Local Setup
 
@@ -55,13 +57,13 @@ assets/yolov8n.pt
 
 This model file is ignored by git, so it must be added locally after cloning.
 
-Run the pink/reference-uniform version:
+Run the combined dress-code version:
 
 ```bash
 streamlit run streamlit_app.py
 ```
 
-Run the blue-saree version:
+The old blue-saree command still opens the same combined app:
 
 ```bash
 streamlit run streamlit_app_blue.py
@@ -74,7 +76,7 @@ http://localhost:8501
 ```
 
 If one Streamlit app is already running on port `8501`, stop it before starting
-the other mode, or run the second app on a different port:
+another copy, or run the app on a different port:
 
 ```bash
 streamlit run streamlit_app_blue.py --server.port 8502
@@ -91,8 +93,7 @@ python tools/two_line_visitor_counter.py --redraw
 - YOLO detects people in each video frame.
 - Tracking keeps a stable ID for each detected person.
 - `config/reception_zone.json` decides the reception desk area.
-- The pink app checks the reference uniform image and lanyard color.
-- The blue app checks for blue-saree color in the body area.
+- The app checks the reference uniform image, lanyard color, and blue-saree color.
 - A person must match for multiple frames before being confirmed as receptionist.
 - Visitor entries/exits are counted when non-receptionist people cross the two saved lines.
 - The app reports peak receptionist count, confirmed receptionist IDs, visitor entries,
